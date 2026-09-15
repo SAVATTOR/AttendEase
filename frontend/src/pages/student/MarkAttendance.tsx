@@ -4,7 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useToast } from '@/context/ToastContext';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Camera, RefreshCw, MapPin } from 'lucide-react';
+import { CheckCircle, XCircle, Camera, RefreshCw, MapPin, X } from 'lucide-react';
 import { StudentLocationMap } from '@/components/maps';
 import { attendanceService } from '@/services/attendanceService';
 import { qrService } from '@/services/qrService';
@@ -27,7 +27,12 @@ export default function MarkAttendance() {
   const [teacherLocation, setTeacherLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [allowedRadius, setAllowedRadius] = useState(50);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const [scanFlash, setScanFlash] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  // html5-qrcode keeps decoding at ~10fps until stop() resolves, and the success
+  // callback closure is fixed at scanner.start() time (won't see later re-renders),
+  // so a plain state check can't guard re-entrancy - this ref can.
+  const isHandlingScanRef = useRef(false);
   const qrReaderRef = useRef<HTMLDivElement | null>(null);
 
   const handleLocationVerified = (location: { lat: number; lng: number }, isWithinRange: boolean, distance: number) => {
@@ -66,6 +71,7 @@ export default function MarkAttendance() {
   }, []);
 
   const startScanner = async () => {
+    isHandlingScanRef.current = false;
     try {
       // Check if camera permissions are available
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -160,11 +166,17 @@ export default function MarkAttendance() {
         scannerRef.current = scanner;
 
         await scanner.start(
-          { facingMode: 'environment' },
           {
+            facingMode: 'environment',
+            // `focusMode` isn't in the standard MediaTrackConstraints typing, but Chrome/Android
+            // support it for sharper, faster-focusing capture at range.
+            advanced: [{ focusMode: 'continuous' }],
+          } as any,
+          {
+            // No `qrbox`: the library would otherwise draw its own dimmed/boxed
+            // scan-region UI on top of ours. It scans the full video frame instead,
+            // while `.qr-scanner-frame` below is purely a visual guide, same as iOS.
             fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
             disableFlip: false,
           },
           (decodedText) => {
@@ -271,14 +283,49 @@ export default function MarkAttendance() {
     });
   };
 
+  const playScanFeedback = () => {
+    try {
+      if (navigator.vibrate) navigator.vibrate(150);
+    } catch {
+      // Vibration API unsupported - ignore
+    }
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.1;
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.12);
+      oscillator.onended = () => ctx.close();
+    } catch {
+      // Web Audio API unsupported - ignore
+    }
+  };
+
   const handleScanSuccess = async (data: string) => {
-    setScanState('processing');
+    // The scanner keeps decoding frames until stop() resolves, so guard against
+    // this firing again for the same still-in-view code while we're mid-transition.
+    if (isHandlingScanRef.current) return;
+    isHandlingScanRef.current = true;
+
+    playScanFeedback();
     if (scannerRef.current) {
       await scannerRef.current.stop();
     }
+    // Briefly flash the corner brackets green before transitioning, mirroring the
+    // quick highlight-then-act behavior of iOS's code scanner.
+    setScanFlash(true);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    setScanFlash(false);
+    setScanState('processing');
 
     try {
-      // The QR code contains a JWT token string, not JSON
+      // The QR code contains a short opaque session token, not a full URL or JWT
       const token = data.trim();
 
       // Get student's current location first
@@ -444,16 +491,31 @@ export default function MarkAttendance() {
           )}
 
           {scanState === 'scanning' && (
-            <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="relative">
-                <div id="qr-reader" className="rounded-xl overflow-hidden" />
-                <div className="qr-scanner-overlay">
-                  <div className="qr-scanner-frame" />
+            <motion.div
+              key="scanning"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black"
+            >
+              <div id="qr-reader" />
+              <div className="qr-scanner-overlay">
+                <div className={`qr-scanner-frame ${scanFlash ? 'qr-scanner-frame-success' : ''}`}>
+                  <span className="qr-corner qr-corner-tl" />
+                  <span className="qr-corner qr-corner-tr" />
+                  <span className="qr-corner qr-corner-bl" />
+                  <span className="qr-corner qr-corner-br" />
                 </div>
+                <p className="qr-scanner-hint">Point your camera at the lecturer's QR code</p>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => { scannerRef.current?.stop(); setScanState('idle'); }}>
-                Cancel
-              </Button>
+              <button
+                type="button"
+                onClick={() => { isHandlingScanRef.current = false; scannerRef.current?.stop(); setScanState('idle'); }}
+                className="qr-scanner-close"
+                aria-label="Cancel scanning"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </motion.div>
           )}
 

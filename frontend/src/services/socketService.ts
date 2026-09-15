@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+// An empty/unset VITE_SOCKET_URL means "same origin" - passing undefined to io() connects
+// to the page's own host, which the dev server proxy (vite.config.ts) then forwards to the
+// backend. This is what makes it work both from localhost and from a phone on the LAN.
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
 
 let socket: Socket | null = null;
 

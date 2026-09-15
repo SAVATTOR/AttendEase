@@ -1,7 +1,5 @@
-const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/database');
 const ApiError = require('../utils/ApiError');
-const env = require('../config/env');
 const { generateSecureToken } = require('../utils/helpers');
 const { QR_SESSION_DURATION } = require('../utils/constants');
 
@@ -35,7 +33,7 @@ const generateQRSession = async ({ classId, teacherId, latitude, longitude, dura
     || QR_SESSION_DURATION;
 
   const expiresAt = new Date(Date.now() + sessionDuration);
-  const token = generateQRToken(classId);
+  const token = generateQRToken();
 
   const qrSession = await prisma.qRSession.create({
     data: {
@@ -77,15 +75,13 @@ const generateQRSession = async ({ classId, teacherId, latitude, longitude, dura
   };
 };
 
-const generateQRToken = (classId) => {
-  const payload = {
-    classId,
-    timestamp: Date.now(),
-    nonce: generateSecureToken(16),
-  };
-
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '30s' });
-};
+// A short opaque random token, not a signed JWT: the QR payload only needs to be
+// unguessable and unique, not self-describing. Keeping it short (20 hex chars vs.
+// a ~280-char JWT) keeps the rendered QR code's module count low, which is what
+// makes it scannable from a distance. Freshness is enforced by validateQRToken()
+// matching against the current DB value (overwritten on every refresh) rather than
+// a JWT expiry claim.
+const generateQRToken = () => generateSecureToken(10);
 
 const refreshQRToken = async (sessionId) => {
   const session = await prisma.qRSession.findUnique({
@@ -96,7 +92,7 @@ const refreshQRToken = async (sessionId) => {
     throw ApiError.badRequest('Session not found or not active');
   }
 
-  const newToken = generateQRToken(session.classId);
+  const newToken = generateQRToken();
 
   await prisma.qRSession.update({
     where: { id: sessionId },
@@ -155,7 +151,7 @@ const resumeSession = async (sessionId, teacherId) => {
   const pausedDuration = Date.now() - new Date(session.pausedAt).getTime();
   const newExpiresAt = new Date(new Date(session.expiresAt).getTime() + pausedDuration);
 
-  const newToken = generateQRToken(session.classId);
+  const newToken = generateQRToken();
 
   return prisma.qRSession.update({
     where: { id: sessionId },
@@ -169,19 +165,16 @@ const resumeSession = async (sessionId, teacherId) => {
 };
 
 const validateQRToken = async (token, studentId, latitude, longitude) => {
-  let decoded;
-  try {
-    decoded = jwt.verify(token, env.JWT_SECRET);
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      throw ApiError.badRequest('QR code has expired. Please scan the new code.');
-    }
+  if (!token) {
     throw ApiError.badRequest('Invalid QR code');
   }
 
+  // The token is looked up directly rather than decoded: it's overwritten in the DB
+  // on every refresh, so a stale/previously scanned token simply won't match any
+  // active session anymore.
   const session = await prisma.qRSession.findFirst({
     where: {
-      classId: decoded.classId,
+      token,
       status: 'ACTIVE',
     },
     include: {
@@ -196,7 +189,7 @@ const validateQRToken = async (token, studentId, latitude, longitude) => {
   });
 
   if (!session) {
-    throw ApiError.badRequest('No active session found for this class');
+    throw ApiError.badRequest('Invalid or expired QR code. Please scan the current code.');
   }
 
   if (new Date() > new Date(session.expiresAt)) {

@@ -1355,109 +1355,114 @@
 }
 
 /* ===========================================
-      11. QR SCANNER STYLES
+      11. QR SCANNER STYLES (iOS-style code scanner)
       =========================================== */
 
-.qr-scanner-container {
-  @apply relative w-full h-full overflow-hidden rounded-xl bg-black;
+/* html5-qrcode injects its own <video>; force it to fill the full-bleed
+   container edge-to-edge instead of the library's default inline sizing. */
+#qr-reader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
 
 .qr-scanner-overlay {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1.5rem;
   pointer-events: none;
-  background: radial-gradient(circle at center, transparent 120px, rgba(0, 0, 0, 0.6) 120px);
 }
 
 .qr-scanner-frame {
-  width: 240px;
-  height: 240px;
-  border: 3px solid hsl(var(--primary));
-  border-radius: 1.5rem;
+  width: min(70vw, 280px);
+  height: min(70vw, 280px);
   position: relative;
-  animation: scan-pulse 2s ease-in-out infinite;
 }
 
-.qr-scanner-frame::before,
-.qr-scanner-frame::after,
-.qr-scanner-corners::before,
-.qr-scanner-corners::after {
-  content: '';
+.qr-corner {
   position: absolute;
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  transition: border-color 0.2s ease;
+}
+
+.qr-corner-tl {
+  top: 0;
+  left: 0;
+  border-width: 3px 0 0 3px;
+  border-radius: 12px 0 0 0;
+}
+
+.qr-corner-tr {
+  top: 0;
+  right: 0;
+  border-width: 3px 3px 0 0;
+  border-radius: 0 12px 0 0;
+}
+
+.qr-corner-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 3px 3px;
+  border-radius: 0 0 0 12px;
+}
+
+.qr-corner-br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 3px 3px 0;
+  border-radius: 0 0 12px 0;
+}
+
+/* Briefly flashes the corner brackets to the success color on a detected scan,
+   mirroring the quick highlight iOS shows before acting on a code. */
+.qr-scanner-frame.qr-scanner-frame-success .qr-corner {
+  border-color: hsl(var(--success));
+}
+
+.qr-scanner-hint {
+  pointer-events: none;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: center;
+  max-width: 80vw;
+}
+
+.qr-scanner-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
   width: 40px;
   height: 40px;
-  border-color: hsl(var(--primary));
-  border-style: solid;
-}
-
-.qr-scanner-frame::before {
-  top: -3px;
-  left: -3px;
-  border-width: 5px 0 0 5px;
-  border-radius: 1.5rem 0 0 0;
-}
-
-.qr-scanner-frame::after {
-  top: -3px;
-  right: -3px;
-  border-width: 5px 5px 0 0;
-  border-radius: 0 1.5rem 0 0;
-}
-
-.qr-scanner-corners::before {
-  bottom: -3px;
-  left: -3px;
-  border-width: 0 0 5px 5px;
-  border-radius: 0 0 0 1.5rem;
-}
-
-.qr-scanner-corners::after {
-  bottom: -3px;
-  right: -3px;
-  border-width: 0 5px 5px 0;
-  border-radius: 0 0 1.5rem 0;
-}
-
-.qr-scanner-line {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
-  animation: scan-line 2s ease-in-out infinite;
-}
-
-@keyframes scan-pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
-  }
-
-  50% {
-    box-shadow: 0 0 0 12px hsl(var(--primary) / 0);
-  }
-}
-
-@keyframes scan-line {
-
-  0%,
-  100% {
-    top: 10%;
-    opacity: 0;
-  }
-
-  50% {
-    opacity: 1;
-  }
-
-  100% {
-    top: 90%;
-    opacity: 0;
-  }
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border: none;
+  z-index: 10;
 }
 
 /* QR Code Display (for teachers) */

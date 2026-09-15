@@ -35,6 +35,7 @@ import { LocationMap, TeacherSessionMap } from '@/components/maps';
 import { exportService } from '@/services/exportService';
 import { qrService, QRSession, SessionAttendance } from '@/services/qrService';
 import { classService, Class } from '@/services/classService';
+import { settingsService, UserSettings } from '@/services/settingsService';
 import { getSocket, joinTeacherClassRoom } from '@/services/socketService';
 
 // QR refresh interval in milliseconds. The backend emits the authoritative value
@@ -81,19 +82,39 @@ export default function StartSession() {
   const [sessionDurationMins, setSessionDurationMins] = useState(60);
   const [allowedRadius, setAllowedRadius] = useState(50);
   const [lateThresholdMinutes, setLateThresholdMinutes] = useState(15);
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
 
-  // Load class defaults when a class is selected
+  // Fetch the lecturer's saved preferences (same /settings endpoint the Settings page
+  // reads/writes) so Advanced Options is pre-filled with the latest saved values on
+  // every page load, not just whatever was in memory when the page last mounted.
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const settings = await settingsService.getSettings();
+        setUserSettings(settings);
+        setSessionDurationMins(settings.defaultSessionDuration);
+        setAllowedRadius(settings.defaultAllowedRadius);
+        setLateThresholdMinutes(settings.lateThresholdMinutes);
+      } catch (error) {
+        console.error('Failed to load session preferences:', error);
+      }
+    };
+    loadPreferences();
+  }, []);
+
+  // Load class defaults when a class is selected, falling back to the lecturer's
+  // saved preferences (rather than hardcoded literals) so a class without its own
+  // explicit override still reflects what was saved on the Settings page.
   useEffect(() => {
     if (selectedClassId && classes.length > 0) {
       const selectedClass = classes.find(c => c.id === selectedClassId);
       if (selectedClass) {
-        // Set defaults from class settings
-        setSessionDurationMins(selectedClass.sessionDurationMins || 60);
-        setAllowedRadius(selectedClass.allowedRadius || 50);
-        setLateThresholdMinutes(selectedClass.lateThresholdMinutes || 15);
+        setSessionDurationMins(userSettings?.defaultSessionDuration ?? selectedClass.sessionDurationMins ?? 60);
+        setAllowedRadius(userSettings?.defaultAllowedRadius ?? selectedClass.allowedRadius ?? 50);
+        setLateThresholdMinutes(userSettings?.lateThresholdMinutes ?? selectedClass.lateThresholdMinutes ?? 15);
       }
     }
-  }, [selectedClassId, classes]);
+  }, [selectedClassId, classes, userSettings]);
   // Fetch session attendance (defined early so it can be used in restoration)
   const fetchSessionAttendance = useCallback(async (sessionId?: string) => {
     const targetSessionId = sessionId || currentSession?.id;
@@ -831,7 +852,7 @@ export default function StartSession() {
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="w-[252px] h-[252px] bg-muted rounded-2xl flex flex-col items-center justify-center"
+                        className="w-[460px] max-w-[90vw] h-[460px] max-h-[90vw] bg-muted rounded-2xl flex flex-col items-center justify-center"
                       >
                         <Pause className="w-16 h-16 text-muted-foreground mb-4" />
                         <p className="text-lg font-semibold text-muted-foreground">SESSION PAUSED</p>
@@ -849,11 +870,14 @@ export default function StartSession() {
                           animate={{ opacity: 1, scale: 1 }}
                           className="bg-primary-foreground p-4 rounded-2xl shadow-lg"
                         >
+                          {/* Medium error correction + a short opaque token (not a JWT) keep the
+                              module count low, and includeMargin keeps the required quiet-zone
+                              border, so the code stays reliably scannable at a distance. */}
                           <QRCodeSVG
                             value={qrData}
-                            size={220}
-                            level="L"
-                            includeMargin={false}
+                            size={440}
+                            level="M"
+                            includeMargin={true}
                           />
                         </motion.div>
 
