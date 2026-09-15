@@ -1,4 +1,4 @@
-# 📚 Smart Attendance System
+📚 Smart Attendance System
 
 A modern, web-based attendance management system with QR code scanning and GPS location verification. Built for educational institutions to streamline attendance tracking with anti-fraud measures.
 
@@ -946,9 +946,14 @@ SOFTWARE.
 
 <p align="center">
   <a href="#-smart-attendance-system">Back to Top ⬆️</a>
-</p>#   A t t e n d E a s e  
- #   A t t e n d E a s e  
- #   A t t e n d E a s e  
- #   A t t e n d E a s e  
- #   A t t e n d E a s e  
+</p>#   A t t e n d E a s e 
+ 
+ #   A t t e n d E a s e 
+ 
+ #   A t t e n d E a s e 
+ 
+ #   A t t e n d E a s e 
+ 
+ #   A t t e n d E a s e 
+ 
  
