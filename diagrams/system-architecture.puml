@@ -1,0 +1,65 @@
+@startuml System Architecture Diagram
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+
+title System Architecture Diagram
+
+package "Frontend Layer" {
+  [React Application] as React
+  [Firebase Hosting] as Firebase
+  React ..> Firebase : Deployed on
+}
+
+package "Backend Layer" {
+  [Express.js Server] as Express
+  [Render Platform] as Render
+  Express ..> Render : Deployed on
+}
+
+package "Database Layer" {
+  [PostgreSQL Database] as Postgres
+  [Supabase Hosting] as Supabase
+  Postgres ..> Supabase : Hosted on
+}
+
+package "External Services" {
+  [Google Maps API] as Maps
+  [Socket.io WebSocket] as Socket
+}
+
+React --> Express : HTTP/REST API
+React --> Socket : WebSocket Connection
+Express --> Postgres : Prisma ORM
+Express --> Socket : WebSocket Server
+React --> Maps : Location Services
+
+note right of React
+  Technologies:
+  - React 18 + TypeScript
+  - Vite Build Tool
+  - Tailwind CSS
+  - React Router
+  - Socket.io Client
+end note
+
+note right of Express
+  Technologies:
+  - Node.js Runtime
+  - Express.js Framework
+  - JWT Authentication
+  - bcryptjs Hashing
+  - Prisma ORM
+  - Socket.io Server
+end note
+
+note right of Postgres
+  Features:
+  - ACID Compliance
+  - Connection Pooling
+  - Indexed Queries
+  - Transaction Support
+end note
+
+@enduml
+

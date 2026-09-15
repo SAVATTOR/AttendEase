@@ -1,0 +1,117 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam activityStyle rectangle
+
+title Attendance Marking Process Flow
+
+|Student|
+start
+:Student opens attendance page;
+:Student clicks "Scan QR Code";
+:Camera activates;
+
+|System|
+:QR scanner initialized;
+
+|Student|
+:Student points camera at QR code;
+
+|System|
+:QR code detected;
+:Token extracted from QR;
+
+|System|
+:Get student GPS coordinates;
+note right
+  navigator.geolocation
+  .getCurrentPosition()
+end note
+
+|System|
+:Send attendance request to backend;
+note right
+  POST /api/attendance/mark
+  Headers: Authorization (JWT)
+  Body: { qrToken, latitude, longitude }
+end note
+
+|Backend|
+:Validate JWT token;
+if (Token valid?) then (no)
+  :Return 401 Unauthorized;
+  stop
+endif
+
+:Query QRSession by token;
+if (Session exists?) then (no)
+  :Return 404 Not Found;
+  stop
+endif
+
+if (Session status == ACTIVE?) then (no)
+  :Return 400 Session Ended;
+  stop
+endif
+
+:Check if student enrolled in class;
+if (Not enrolled?) then (yes)
+  :Auto-enroll student;
+endif
+
+:Check duplicate attendance;
+if (Already marked?) then (yes)
+  :Return 400 Already Marked;
+  stop
+endif
+
+:Calculate distance using Haversine;
+note right
+  Distance between:
+  - Teacher location (session)
+  - Student location (request)
+end note
+
+if (Distance <= allowed radius?) then (yes)
+  :Determine attendance status;
+  if (Marked within late threshold?) then (yes)
+    :Status = PRESENT;
+  else (no)
+    :Status = LATE;
+  endif
+else (no)
+  :Status = INVALID_LOCATION;
+  :Return 400 Outside Radius;
+  stop
+endif
+
+:Create Attendance record;
+note right
+  - studentId
+  - qrSessionId
+  - latitude, longitude
+  - distance
+  - status
+  - markedAt timestamp
+end note
+
+:Emit WebSocket event;
+note right
+  Event: 'attendance-marked'
+  Room: classId
+  Data: { student, status, time }
+end note
+
+:Return 200 Success;
+
+|System|
+:Display success message;
+:Update student attendance history;
+
+|Teacher Dashboard|
+:Receive WebSocket event;
+:Update live attendance list;
+:Show new attendance in real-time;
+
+stop
+@enduml

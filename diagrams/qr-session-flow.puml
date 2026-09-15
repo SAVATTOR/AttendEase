@@ -1,0 +1,81 @@
+@startuml QR Code Session Flow Diagram
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam activityStyle rectangle
+
+title QR Code Session Flow Diagram
+
+start
+
+:Teacher logs in;
+:Teacher selects class;
+:Teacher clicks "Start Session";
+
+:Backend generates QR session;
+note right
+  - Creates QRSession record
+  - Generates unique token (UUID)
+  - Sets expiration time (60 min default)
+  - Captures teacher location (GPS)
+end note
+
+:Backend generates QR code;
+note right
+  - Encodes session token
+  - Includes timestamp
+  - Sets refresh interval (5 seconds)
+end note
+
+:QR code displayed on teacher screen;
+
+repeat
+  :QR token refreshes every 5 seconds;
+  :New QR code generated;
+  :Old token invalidated;
+repeat while (Session Active?)
+
+:Student scans QR code;
+:Frontend extracts token;
+:Frontend gets student GPS location;
+
+:Frontend sends attendance request;
+note right
+  POST /api/attendance/mark
+  {
+    qrToken: "...",
+    latitude: 40.7128,
+    longitude: -74.0060
+  }
+end note
+
+:Backend validates token;
+if (Token valid?) then (yes)
+  :Backend calculates distance;
+  note right
+    Haversine formula:
+    d = R * 2 * atan2(√a, √(1-a))
+    where a = sin²(Δφ/2) + 
+    cos(φ1) * cos(φ2) * sin²(Δλ/2)
+  end note
+  
+  if (Within radius?) then (yes)
+    :Backend checks duplicate;
+    if (Already marked?) then (no)
+      :Backend creates attendance record;
+      :Backend emits WebSocket event;
+      :Teacher dashboard updates in real-time;
+      :Success response to student;
+    else (yes)
+      :Error: Already marked attendance;
+    endif
+  else (no)
+    :Error: Outside allowed radius;
+  endif
+else (no)
+  :Error: Invalid or expired token;
+endif
+
+stop
+
+@enduml
+

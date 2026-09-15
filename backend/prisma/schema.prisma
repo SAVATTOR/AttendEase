@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  INVALID_LOCATION
+}
+
+enum SessionStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+  EXPIRED
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                          String    @id @default(uuid())
+  email                       String    @unique
+  password                    String
+  name                        String
+  role                        Role
+  indexNumber                 String?   // Student index number
+  session                     String?   // Academic session (e.g., "2023/2024")
+  program                     String?   // Student program (e.g., "Computer Science")
+  isEmailVerified             Boolean   @default(false)
+  emailVerificationCode       String?
+  emailVerificationCodeExpiresAt DateTime?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  // Relations
+  loginSessions LoginSession[]
+  teacherClasses Class[]       @relation("TeacherClasses")
+  enrollments   Enrollment[]
+  attendances   Attendance[]
+  settings      UserSettings?
+
+  @@map("users")
+}
+
+model UserSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  emailNotifications    Boolean  @default(true)
+  sessionReminders      Boolean  @default(true)
+  defaultSessionDuration Int     @default(60)
+  defaultAllowedRadius  Int      @default(50)
+  lateThresholdMinutes  Int      @default(15)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model LoginSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  deviceId  String?
+  loginAt   DateTime @default(now())
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([deviceId])
+  @@map("login_sessions")
+}
+
+model Class {
+  id                   String   @id @default(uuid())
+  name                 String
+  description          String?
+  code                 String   @unique
+  teacherId            String
+  schedule             Json?
+  allowedRadius        Int      @default(50)
+  lateThresholdMinutes Int      @default(15)
+  sessionDurationMins  Int      @default(60)
+  group                String?
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  teacher     User         @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+  qrSessions  QRSession[]
+  attendances Attendance[]
+
+  @@index([teacherId])
+  @@index([code])
+  @@map("classes")
+}
+
+model Enrollment {
+  id         String           @id @default(uuid())
+  studentId  String
+  classId    String
+  status     EnrollmentStatus @default(PENDING)
+  enrolledAt DateTime         @default(now())
+
+  // Relations
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([status])
+  @@map("enrollments")
+}
+
+model QRSession {
+  id        String        @id @default(uuid())
+  classId   String
+  token     String        @unique
+  latitude  Float
+  longitude Float
+  status    SessionStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  pausedAt  DateTime?
+  resumedAt DateTime?
+  expiresAt            DateTime
+  endedAt              DateTime?
+  allowedRadius        Float?
+  lateThresholdMinutes Int?
+
+  // Relations
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  attendances Attendance[]
+
+  @@index([classId])
+  @@index([token])
+  @@index([status])
+  @@map("qr_sessions")
+}
+
+model Attendance {
+  id          String           @id @default(uuid())
+  studentId   String
+  classId     String
+  qrSessionId String
+  latitude    Float
+  longitude   Float
+  distance    Float
+  status      AttendanceStatus
+  markedAt    DateTime         @default(now())
+  deviceInfo  String?
+
+  // Relations
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class     Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  qrSession QRSession @relation(fields: [qrSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, qrSessionId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([qrSessionId])
+  @@index([markedAt])
+  @@map("attendances")
+}

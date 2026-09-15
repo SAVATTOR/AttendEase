@@ -1,0 +1,68 @@
+@startuml Deployment Architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam nodeStyle rectangle
+skinparam componentStyle rectangle
+
+title Figure 4.5 - Deployment Architecture
+
+cloud "Internet" {
+  [Users\n(Teachers & Students)] as Users
+}
+
+cloud "Firebase Hosting" as Firebase {
+  node "Frontend (SPA)" as Frontend {
+    [React App\n(Build: Vite)] as React
+    [Static Assets\n(JS, CSS, HTML)] as Static
+  }
+}
+
+cloud "Render" as Render {
+  node "Backend Service" as Backend {
+    [Node.js Runtime] as Node
+    [Express.js Server] as Express
+    [Socket.io Server] as Socket
+  }
+}
+
+cloud "Supabase" as Supabase {
+  node "Database" as DB {
+    [PostgreSQL 16] as Postgres
+    [Connection Pooling] as Pool
+  }
+}
+
+Users --> Frontend : HTTPS\n(attendance-system-*.web.app)
+Users --> Backend : HTTPS / WebSocket\n(API + Socket.io)
+
+Frontend --> Backend : REST API\n(JSON, JWT in header)
+Frontend --> Backend : WebSocket\n(Socket.io client)
+
+Backend --> DB : Prisma ORM\n(DATABASE_URL)
+Express --> Postgres : SQL over TLS
+Socket --> Postgres : (same connection)
+
+note right of Firebase
+  **Frontend**
+  - Global CDN
+  - Auto SSL
+  - SPA routing
+  - Build: npm run build
+end note
+
+note right of Render
+  **Backend**
+  - Auto-deploy from Git
+  - Health check: /api/health
+  - Env: DATABASE_URL,
+    JWT_SECRET, FRONTEND_URL
+end note
+
+note right of Supabase
+  **Database**
+  - Managed PostgreSQL
+  - Backups
+  - Point-in-time recovery
+end note
+
+@enduml

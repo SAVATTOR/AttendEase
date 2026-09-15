@@ -1,0 +1,44 @@
+@startuml Real-Time Attendance Update
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+
+title Figure 4.4 - Real-Time Attendance Update Flow
+
+actor "Student" as Student
+participant "Student\nBrowser" as StudentUI
+participant "Backend API\n(Express)" as API
+participant "PostgreSQL\n(Supabase)" as DB
+participant "Socket.io\nServer" as Socket
+participant "Teacher\nDashboard" as TeacherUI
+
+== Student marks attendance ==
+Student -> StudentUI : Scan QR code
+StudentUI -> StudentUI : Decode token\nGet GPS location
+StudentUI -> API : POST /api/attendance/mark\n{ qrToken, latitude, longitude }
+API -> API : Validate JWT
+API -> API : Validate QR token\nCheck session ACTIVE
+API -> DB : Check enrollment\nCheck duplicate
+API -> API : Haversine distance\nWithin radius?
+API -> DB : INSERT Attendance
+
+== Backend notifies teacher in real time ==
+API -> Socket : emit('new-attendance', data)
+note right of Socket
+  Room: classId or sessionId
+  Data: { studentName, status, markedAt }
+end note
+
+Socket -> TeacherUI : WebSocket push\n'new-attendance' event
+TeacherUI -> TeacherUI : Update live list\nNo page refresh
+
+API --> StudentUI : 200 OK\n{ success, attendance }
+StudentUI -> Student : Show "Attendance marked"
+
+== Optional: QR refresh ==
+participant "Teacher\nSession View" as TeacherSession
+TeacherSession -> Socket : join room (classId)
+Socket -> TeacherSession : qr-refreshed (new token)
+TeacherSession -> TeacherSession : Re-render QR code
+
+@enduml

@@ -1,0 +1,138 @@
+@startuml Database Entity Relationship Diagram
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam linetype ortho
+
+title Database Entity Relationship Diagram
+
+entity "User" {
+  * id : UUID <<PK>>
+  --
+  * email : String <<UNIQUE>>
+  * password : String (bcrypt)
+  * name : String
+  * role : Role (STUDENT|TEACHER)
+  * createdAt : DateTime
+  * updatedAt : DateTime
+}
+
+entity "UserSettings" {
+  * id : UUID <<PK>>
+  * userId : UUID <<FK, UNIQUE>>
+  --
+  emailNotifications : Boolean
+  sessionReminders : Boolean
+  defaultSessionDuration : Int
+  defaultAllowedRadius : Int
+  lateThresholdMinutes : Int
+}
+
+entity "LoginSession" {
+  * id : UUID <<PK>>
+  * userId : UUID <<FK>>
+  --
+  * token : String <<UNIQUE>>
+  * loginAt : DateTime
+  * expiresAt : DateTime
+  isActive : Boolean
+}
+
+entity "Class" {
+  * id : UUID <<PK>>
+  * teacherId : UUID <<FK>>
+  --
+  * name : String
+  description : String
+  * code : String <<UNIQUE>>
+  schedule : JSON
+  allowedRadius : Int
+  lateThresholdMinutes : Int
+  sessionDurationMins : Int
+  isActive : Boolean
+  createdAt : DateTime
+  updatedAt : DateTime
+}
+
+entity "Enrollment" {
+  * id : UUID <<PK>>
+  * studentId : UUID <<FK>>
+  * classId : UUID <<FK>>
+  --
+  * enrolledAt : DateTime
+}
+
+entity "QRSession" {
+  * id : UUID <<PK>>
+  * classId : UUID <<FK>>
+  --
+  * token : String <<UNIQUE>>
+  * latitude : Float
+  * longitude : Float
+  * status : SessionStatus
+  * createdAt : DateTime
+  pausedAt : DateTime
+  resumedAt : DateTime
+  * expiresAt : DateTime
+  endedAt : DateTime
+}
+
+entity "Attendance" {
+  * id : UUID <<PK>>
+  * studentId : UUID <<FK>>
+  * classId : UUID <<FK>>
+  * qrSessionId : UUID <<FK>>
+  --
+  * latitude : Float
+  * longitude : Float
+  * distance : Float
+  * status : AttendanceStatus
+  * markedAt : DateTime
+  deviceInfo : String
+}
+
+' Relationships
+User ||--o{ LoginSession : "has"
+User ||--|| UserSettings : "has"
+User ||--o{ Class : "teaches (Teacher)"
+User ||--o{ Enrollment : "enrolled in (Student)"
+User ||--o{ Attendance : "marks"
+Class ||--o{ Enrollment : "has"
+Class ||--o{ QRSession : "has"
+Class ||--o{ Attendance : "records"
+QRSession ||--o{ Attendance : "tracks"
+
+note right of User
+  Roles:
+  - STUDENT
+  - TEACHER
+end note
+
+note right of QRSession
+  Status:
+  - ACTIVE
+  - PAUSED
+  - ENDED
+  - EXPIRED
+end note
+
+note right of Attendance
+  Status:
+  - PRESENT
+  - LATE
+  - ABSENT
+  - INVALID_LOCATION
+end note
+
+note bottom of Enrollment
+  Unique constraint:
+  (studentId, classId)
+end note
+
+note bottom of Attendance
+  Unique constraint:
+  (studentId, qrSessionId)
+  Prevents duplicate marking
+end note
+
+@enduml
+

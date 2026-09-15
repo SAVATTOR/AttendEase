@@ -1,0 +1,101 @@
+@startuml Security Implementation Layers
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+
+title Security Implementation Layers
+
+package "Layer 1: Network Security" {
+  [HTTPS/TLS Encryption] as TLS
+  [CORS Protection] as CORS
+  [Rate Limiting] as RateLimit
+}
+
+package "Layer 2: Authentication" {
+  [JWT Token] as JWT
+  [Password Hashing (bcrypt)] as Bcrypt
+  [Session Management] as Session
+}
+
+package "Layer 3: Authorization" {
+  [Role-Based Access Control] as RBAC
+  [Route Protection] as Routes
+  [API Endpoint Guards] as Guards
+}
+
+package "Layer 4: Input Validation" {
+  [Express Validator] as Validator
+  [SQL Injection Prevention] as SQLInj
+  [XSS Protection] as XSS
+}
+
+package "Layer 5: QR Code Security" {
+  [Dynamic Token Rotation] as TokenRot
+  [Time-Based Expiration] as Expiry
+  [Single-Use Validation] as SingleUse
+}
+
+package "Layer 6: Location Security" {
+  [GPS Verification] as GPS
+  [Haversine Distance Check] as Distance
+  [Geofencing] as Geofence
+}
+
+package "Layer 7: Data Integrity" {
+  [Database Constraints] as DBConstraints
+  [Unique Constraints] as Unique
+  [Transaction Support] as Transaction
+}
+
+TLS --> CORS
+CORS --> RateLimit
+RateLimit --> JWT
+JWT --> Bcrypt
+Bcrypt --> Session
+Session --> RBAC
+RBAC --> Routes
+Routes --> Guards
+Guards --> Validator
+Validator --> SQLInj
+SQLInj --> XSS
+XSS --> TokenRot
+TokenRot --> Expiry
+Expiry --> SingleUse
+SingleUse --> GPS
+GPS --> Distance
+Distance --> Geofence
+Geofence --> DBConstraints
+DBConstraints --> Unique
+Unique --> Transaction
+
+note right of TLS
+  All communication
+  encrypted in transit
+end note
+
+note right of JWT
+  Stateless authentication
+  7-day expiration
+  Refresh token rotation
+end note
+
+note right of TokenRot
+  QR tokens refresh
+  every 5 seconds
+  Prevents screenshot sharing
+end note
+
+note right of GPS
+  Dual verification:
+  QR code + GPS location
+  Prevents proxy attendance
+end note
+
+note right of DBConstraints
+  Database-level
+  duplicate prevention
+  ACID compliance
+end note
+
+@enduml
+
