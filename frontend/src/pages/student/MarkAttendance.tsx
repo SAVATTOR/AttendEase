@@ -143,45 +143,46 @@ export default function MarkAttendance() {
           throw new Error('Scanner element not found');
         }
 
+        // Tear down any previous instance first. A scanner whose start() failed is left
+        // mid-transition, and constructing/starting another against the same element
+        // throws "Cannot transition to a new state, already under transition".
+        if (scannerRef.current) {
+          try {
+            await scannerRef.current.stop();
+          } catch {
+            // Wasn't running - nothing to stop
+          }
+          try {
+            scannerRef.current.clear();
+          } catch {
+            // Already cleared
+          }
+          scannerRef.current = null;
+        }
+
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
 
-        const scanConfig = {
-          // No `qrbox`: the library would otherwise draw its own dimmed/boxed
-          // scan-region UI on top of ours. It scans the full video frame instead,
-          // while `.qr-scanner-frame` below is purely a visual guide, same as iOS.
-          fps: 10,
-          disableFlip: false,
-        };
-        const onDecoded = (decodedText: string) => handleScanSuccess(decodedText);
-        const onScanFailure = (errorMessage: string) => {
-          // Ignore scanning errors - they're normal during scanning
-          console.debug('Scanning error (normal):', errorMessage);
-        };
-
-        try {
-          // `focusMode` isn't in the standard MediaTrackConstraints typing, but Chrome/Android
-          // support it as an "advanced" (best-effort) constraint for sharper capture at range.
-          await scanner.start(
-            {
-              facingMode: 'environment',
-              advanced: [{ focusMode: 'continuous' }],
-            } as any,
-            scanConfig,
-            onDecoded,
-            onScanFailure
-          );
-        } catch (advancedConstraintError) {
-          // Safari/WebKit (iOS) doesn't support `focusMode` and throws OverconstrainedError
-          // instead of ignoring it like Chrome does - retry with the plain constraint.
-          console.debug('Camera start with focusMode failed, retrying without it:', advancedConstraintError);
-          await scanner.start(
-            { facingMode: 'environment' },
-            scanConfig,
-            onDecoded,
-            onScanFailure
-          );
-        }
+        // Exactly one start() call with plain constraints. An earlier version tried a
+        // `focusMode: 'continuous'` advanced constraint first and retried without it on
+        // failure, but iOS rejects that constraint AND the library can't be restarted
+        // after a failed start - so the retry itself became the error. Continuous
+        // autofocus is the default behavior for video capture anyway.
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            // No `qrbox`: the library would otherwise draw its own dimmed/boxed
+            // scan-region UI on top of ours. It scans the full video frame instead,
+            // while `.qr-scanner-frame` below is purely a visual guide, same as iOS.
+            fps: 10,
+            disableFlip: false,
+          },
+          (decodedText) => handleScanSuccess(decodedText),
+          (scanFailureMessage) => {
+            // Ignore scanning errors - they're normal during scanning
+            console.debug('Scanning error (normal):', scanFailureMessage);
+          }
+        );
       } catch (err: any) {
         console.error('Scanner error:', err);
         setScanState('error');
