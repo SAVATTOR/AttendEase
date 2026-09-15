@@ -36,6 +36,7 @@ import { exportService } from '@/services/exportService';
 import { qrService, QRSession, SessionAttendance } from '@/services/qrService';
 import { classService, Class } from '@/services/classService';
 import { settingsService, UserSettings } from '@/services/settingsService';
+import { getAccuratePosition } from '@/lib/geolocation';
 import { getSocket, joinTeacherClassRoom } from '@/services/socketService';
 
 // QR refresh interval in milliseconds. The backend emits the authoritative value
@@ -60,6 +61,7 @@ export default function StartSession() {
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [qrData, setQrData] = useState<string>('');
   const [countdown, setCountdown] = useState(DEFAULT_QR_REFRESH_INTERVAL_MS / 1000);
   const [qrRefreshIntervalMs, setQrRefreshIntervalMs] = useState<number>(DEFAULT_QR_REFRESH_INTERVAL_MS);
@@ -287,29 +289,29 @@ export default function StartSession() {
   const remainingCount = totalEnrolled - attendanceRecords.length;
 
   // Request location permission
-  const requestLocation = () => {
-    if (navigator.geolocation) {
-      setIsLocating(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCoordinates({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-          setLocationGranted(true);
-          setIsLocating(false);
-          showToast('success', 'Location enabled', 'Your location will be used for attendance verification');
-        },
-        () => {
-          setIsLocating(false);
-          showToast('error', 'Location denied', 'Please enable location to start a session');
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
+  const requestLocation = async () => {
+    setIsLocating(true);
+    try {
+      const position = await getAccuratePosition();
+      setCoordinates({ lat: position.lat, lng: position.lng });
+      setLocationAccuracy(position.accuracy);
+      setLocationGranted(true);
+
+      // This fix becomes the centre every student is measured against, so a coarse one
+      // silently marks people out of range. Say so instead of failing quietly later.
+      if (position.accuracy > allowedRadius) {
+        showToast(
+          'warning',
+          `Location only accurate to ±${Math.round(position.accuracy)}m`,
+          'Students may be marked out of range. Move near a window or use a phone, then refresh the location.'
+        );
+      } else {
+        showToast('success', 'Location enabled', `Accurate to ±${Math.round(position.accuracy)}m`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Location unavailable', error?.message || 'Please enable location to start a session');
+    } finally {
+      setIsLocating(false);
     }
   };
 
@@ -656,7 +658,24 @@ export default function StartSession() {
                       />
                       <div className="bg-muted/50 p-2 text-xs text-center text-muted-foreground">
                         Session center location
+                        {locationAccuracy !== null && (
+                          <span className={locationAccuracy > allowedRadius ? 'text-warning font-medium' : ''}>
+                            {' · '}accurate to ±{Math.round(locationAccuracy)}m
+                          </span>
+                        )}
                       </div>
+                      {locationAccuracy !== null && locationAccuracy > allowedRadius && (
+                        <div className="bg-warning/10 border-t border-warning/20 p-2 flex items-start gap-2">
+                          <p className="text-xs text-warning-foreground/90">
+                            This fix is less precise than your {allowedRadius}m radius, so students nearby may
+                            still be measured as out of range. Move near a window or start from a phone, then
+                            refresh the location.
+                          </p>
+                          <Button variant="outline" size="sm" onClick={requestLocation} disabled={isLocating}>
+                            {isLocating ? 'Locating' : 'Refresh'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted border-border">

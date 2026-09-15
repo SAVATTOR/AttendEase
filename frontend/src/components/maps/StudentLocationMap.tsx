@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, CheckCircle, XCircle } from 'lucide-react';
+import { getAccuratePosition } from '@/lib/geolocation';
 
 interface StudentLocationMapProps {
     teacherLocation: {
@@ -50,6 +51,7 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
 }) => {
     const [studentLocation, setStudentLocation] = useState<{ lat: number; lng: number } | null>(initialStudentLocation || null);
     const [distance, setDistance] = useState<number | null>(null);
+    const [accuracy, setAccuracy] = useState<number | null>(null);
     const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isLocating, setIsLocating] = useState<boolean>(false);
@@ -74,91 +76,53 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
         }
     }, [initialStudentLocation, teacherLocation, allowedRadius, onLocationVerified]);
 
-    const getStudentLocation = useCallback(() => {
+    const getStudentLocation = useCallback(async () => {
         setIsLocating(true);
         setLocationError(null);
 
-        if (!navigator.geolocation) {
-            setLocationError('Geolocation is not supported by your browser');
-            setIsLocating(false);
-            return;
-        }
+        try {
+            // Refines over a few seconds instead of accepting the first coarse fix, which
+            // indoors is often a WiFi estimate hundreds of metres out.
+            const position = await getAccuratePosition();
+            const location = { lat: position.lat, lng: position.lng };
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const location = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                };
-
-                // Validate coordinates before using them
-                if (!location.lat || !location.lng ||
-                    isNaN(location.lat) || isNaN(location.lng) ||
-                    location.lat === 0 || location.lng === 0 ||
-                    Math.abs(location.lat) > 90 || Math.abs(location.lng) > 180) {
-                    setLocationError('Invalid location coordinates received');
-                    setIsLocating(false);
-                    return;
-                }
-
-                // Validate teacher location before calculating distance
-                if (!teacherLocation ||
-                    !teacherLocation.lat || !teacherLocation.lng ||
-                    isNaN(teacherLocation.lat) || isNaN(teacherLocation.lng)) {
-                    setLocationError('Lecturer location not available');
-                    setIsLocating(false);
-                    return;
-                }
-
-                setStudentLocation(location);
-
-                const dist = calculateDistance(
-                    location.lat,
-                    location.lng,
-                    teacherLocation.lat,
-                    teacherLocation.lng
-                );
-
-                // Validate calculated distance (should be reasonable)
-                if (isNaN(dist) || dist < 0 || dist > 1000000) { // More than 1000km is suspicious
-                    setLocationError('Invalid distance calculated');
-                    setIsLocating(false);
-                    return;
-                }
-
-                setDistance(dist);
-
-                const withinRange = dist <= allowedRadius;
-                setIsWithinRange(withinRange);
-
-                if (onLocationVerified) {
-                    onLocationVerified(location, withinRange, dist);
-                }
-
-                setIsLocating(false);
-            },
-            (error) => {
-                let errorMessage = 'Failed to get location';
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMessage = 'Location permission denied. Please enable location access.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMessage = 'Location information unavailable.';
-                        break;
-                    case error.TIMEOUT:
-                        errorMessage = 'Location request timed out.';
-                        break;
-                }
-                setLocationError(errorMessage);
-                setIsLocating(false);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0,
+            // Validate teacher location before calculating distance
+            if (!teacherLocation ||
+                !teacherLocation.lat || !teacherLocation.lng ||
+                isNaN(teacherLocation.lat) || isNaN(teacherLocation.lng)) {
+                setLocationError('Lecturer location not available');
+                return;
             }
-        );
+
+            setStudentLocation(location);
+            setAccuracy(position.accuracy);
+
+            const dist = calculateDistance(
+                location.lat,
+                location.lng,
+                teacherLocation.lat,
+                teacherLocation.lng
+            );
+
+            // Validate calculated distance (should be reasonable)
+            if (isNaN(dist) || dist < 0 || dist > 1000000) { // More than 1000km is suspicious
+                setLocationError('Invalid distance calculated');
+                return;
+            }
+
+            setDistance(dist);
+
+            const withinRange = dist <= allowedRadius;
+            setIsWithinRange(withinRange);
+
+            if (onLocationVerified) {
+                onLocationVerified(location, withinRange, dist);
+            }
+        } catch (error: any) {
+            setLocationError(error?.message || 'Failed to get location');
+        } finally {
+            setIsLocating(false);
+        }
     }, [teacherLocation, allowedRadius, onLocationVerified]);
 
     useEffect(() => {
@@ -203,6 +167,11 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
                         ) : distance !== null ? (
                             <>
                                 Distance: <strong>{distance.toFixed(1)}m</strong> / {allowedRadius}m allowed
+                                {accuracy !== null && accuracy > allowedRadius && (
+                                    <span className="block text-amber-600">
+                                        Signal only accurate to ±{Math.round(accuracy)}m — move outside or near a window
+                                    </span>
+                                )}
                             </>
                         ) : studentLocation ? (
                             'Calculating distance...'

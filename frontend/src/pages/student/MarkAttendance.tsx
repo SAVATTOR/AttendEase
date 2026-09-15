@@ -8,6 +8,7 @@ import { CheckCircle, XCircle, Camera, RefreshCw, MapPin, X } from 'lucide-react
 import { StudentLocationMap } from '@/components/maps';
 import { attendanceService } from '@/services/attendanceService';
 import { qrService } from '@/services/qrService';
+import { getAccuratePosition } from '@/lib/geolocation';
 
 type ScanState = 'idle' | 'scanning' | 'processing' | 'success' | 'error';
 
@@ -251,43 +252,10 @@ export default function MarkAttendance() {
     });
   };
 
-  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by your browser'));
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          let errorMessage = 'Failed to get location';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information unavailable.';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Location request timed out.';
-              break;
-          }
-          reject(new Error(errorMessage));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 20000,
-          maximumAge: 0,
-        }
-      );
-    });
-  };
+  // Refines the fix for a few seconds rather than taking the first (often WiFi-derived,
+  // hundreds-of-metres-off) reading, which is what caused students standing in the room
+  // to be measured as out of range.
+  const getCurrentLocation = () => getAccuratePosition();
 
   const playScanFeedback = () => {
     try {
