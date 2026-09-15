@@ -76,12 +76,18 @@ const generateQRSession = async ({ classId, teacherId, latitude, longitude, dura
 };
 
 // A short opaque random token, not a signed JWT: the QR payload only needs to be
-// unguessable and unique, not self-describing. Keeping it short (20 hex chars vs.
-// a ~280-char JWT) keeps the rendered QR code's module count low, which is what
-// makes it scannable from a distance. Freshness is enforced by validateQRToken()
-// matching against the current DB value (overwritten on every refresh) rather than
-// a JWT expiry claim.
-const generateQRToken = () => generateSecureToken(10);
+// unguessable and unique, not self-describing.
+//
+// Size matters more than it looks here. 16 UPPERCASE hex chars encodes in the QR
+// alphanumeric mode (0-9 and A-F are all in that charset, lowercase is not), which
+// fits in a version-1 symbol - 21x21 modules, the smallest QR that exists. Rendered
+// at 440px that's ~18px per module, so it reads instantly and from across a room.
+// Lowercase would force byte mode and a denser version-2 grid for the same data.
+//
+// 64 bits of entropy against a token that rotates every few seconds and a
+// rate-limited endpoint leaves no meaningful guessing risk. Freshness is enforced by
+// validateQRToken() matching the current DB value, which every refresh overwrites.
+const generateQRToken = () => generateSecureToken(8).toUpperCase();
 
 const refreshQRToken = async (sessionId) => {
   const session = await prisma.qRSession.findUnique({

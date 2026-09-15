@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, MarkerF, CircleF } from '@react-google-maps/api';
-import { MapPin, Navigation, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapPin, Navigation, CheckCircle, XCircle } from 'lucide-react';
 
 interface StudentLocationMapProps {
     teacherLocation: {
@@ -13,12 +14,6 @@ interface StudentLocationMapProps {
     autoRequestLocation?: boolean; // If false, won't automatically request location on mount
     initialStudentLocation?: { lat: number; lng: number }; // Pre-provided student location to avoid requesting
 }
-
-const containerStyle = {
-    width: '100%',
-    height: '100%',
-    borderRadius: '0.5rem',
-};
 
 // Haversine formula to calculate distance
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -35,6 +30,16 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
     return R * c;
 };
 
+// react-leaflet's `center` prop on MapContainer only applies on first render - this
+// keeps the view centered as the student's location is (re)fetched.
+function RecenterMap({ center }: { center: [number, number] }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setView(center);
+    }, [center, map]);
+    return null;
+}
+
 export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
     teacherLocation,
     allowedRadius,
@@ -43,13 +48,6 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
     autoRequestLocation = true,
     initialStudentLocation,
 }) => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-    const { isLoaded, loadError } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: apiKey,
-    });
-
     const [studentLocation, setStudentLocation] = useState<{ lat: number; lng: number } | null>(initialStudentLocation || null);
     const [distance, setDistance] = useState<number | null>(null);
     const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
@@ -187,57 +185,9 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
         }
     }, [teacherLocation, studentLocation, isLocating, locationError, autoRequestLocation, onLocationVerified, getStudentLocation]);
 
-    if (!apiKey || apiKey === 'your-google-maps-api-key-here' || apiKey.trim() === '') {
-        return (
-            <div
-                className="flex flex-col items-center justify-center bg-yellow-50 border border-yellow-200 rounded-lg p-6"
-                style={{ height }}
-            >
-                <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mb-4">
-                    <RefreshCw className="w-6 h-6 text-yellow-600" />
-                </div>
-                <div className="text-center">
-                    <p className="text-yellow-800 font-semibold text-lg">Google Maps API Key Not Configured</p>
-                    <p className="text-yellow-700 text-sm mt-2">Please set VITE_GOOGLE_MAPS_API_KEY in your .env file</p>
-                    <p className="text-yellow-600 text-xs mt-1">Restart the dev server after adding the key</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (loadError) {
-        return (
-            <div
-                className="flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded-lg p-6"
-                style={{ height }}
-            >
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                    <RefreshCw className="w-6 h-6 text-red-600" />
-                </div>
-                <div className="text-center">
-                    <p className="text-red-600 font-semibold text-lg">Failed to load Map</p>
-                    <p className="text-red-500 text-sm mt-1">
-                        {loadError.message?.includes('InvalidKey') || loadError.message?.includes('InvalidKeyMapError')
-                            ? 'Invalid Google Maps API Key. Please check your API key configuration.'
-                            : 'Please verify your internet connection or API key'}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!isLoaded) {
-        return (
-            <div
-                className="flex items-center justify-center bg-gray-100 rounded-lg animate-pulse"
-                style={{ height }}
-            >
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-        );
-    }
-
     const mapCenter = studentLocation || teacherLocation;
+    const mapCenterTuple: [number, number] = [mapCenter.lat, mapCenter.lng];
+    const teacherTuple: [number, number] = [teacherLocation.lat, teacherLocation.lng];
 
     return (
         <div className="space-y-3">
@@ -296,51 +246,29 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
             </div>
 
             {/* Map */}
-            <div style={{ height }}>
-                <GoogleMap
-                    mapContainerStyle={containerStyle}
-                    center={mapCenter}
-                    zoom={18}
-                    options={{
-                        disableDefaultUI: true,
-                        zoomControl: true,
-                    }}
-                >
-                    {isLocating && (
-                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm transition-all duration-300">
-                            <div className="relative">
-                                <div className="w-16 h-16 rounded-full border-4 border-primary/20 animate-pulse" />
-                                <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-t-4 border-primary animate-spin" />
-                            </div>
-                            <div className="text-center mt-6">
-                                <p className="text-gray-900 font-semibold">Updating Location</p>
-                                <p className="text-gray-500 text-sm mt-1">Getting your precise coordinates...</p>
-                            </div>
-                        </div>
-                    )}
+            <div style={{ height }} className="relative">
+                <MapContainer center={mapCenterTuple} zoom={18} style={{ width: '100%', height: '100%', borderRadius: '0.5rem' }}>
+                    <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <RecenterMap center={mapCenterTuple} />
 
                     {/* Teacher Location */}
-                    <MarkerF
-                        position={teacherLocation}
-                        title="Lecturer Location"
-                        icon={{
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 12,
-                            fillColor: '#3B82F6',
-                            fillOpacity: 1,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 3,
-                        }}
+                    <CircleMarker
+                        center={teacherTuple}
+                        radius={12}
+                        pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#3B82F6', fillOpacity: 1 }}
                     />
 
                     {/* Allowed Radius */}
-                    <CircleF
-                        center={teacherLocation}
+                    <Circle
+                        center={teacherTuple}
                         radius={allowedRadius}
-                        options={{
-                            strokeColor: isWithinRange ? '#22C55E' : '#EF4444',
-                            strokeOpacity: 0.8,
-                            strokeWeight: 2,
+                        pathOptions={{
+                            color: isWithinRange ? '#22C55E' : '#EF4444',
+                            weight: 2,
+                            opacity: 0.8,
                             fillColor: isWithinRange ? '#22C55E' : '#EF4444',
                             fillOpacity: 0.1,
                         }}
@@ -348,20 +276,31 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
 
                     {/* Student Location */}
                     {studentLocation && (
-                        <MarkerF
-                            position={studentLocation}
-                            title="Your Location"
-                            icon={{
-                                path: google.maps.SymbolPath.CIRCLE,
-                                scale: 10,
+                        <CircleMarker
+                            center={[studentLocation.lat, studentLocation.lng]}
+                            radius={10}
+                            pathOptions={{
+                                color: '#ffffff',
+                                weight: 2,
                                 fillColor: isWithinRange ? '#22C55E' : '#EF4444',
                                 fillOpacity: 1,
-                                strokeColor: '#ffffff',
-                                strokeWeight: 2,
                             }}
                         />
                     )}
-                </GoogleMap>
+                </MapContainer>
+
+                {isLocating && (
+                    <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm transition-all duration-300">
+                        <div className="relative">
+                            <div className="w-16 h-16 rounded-full border-4 border-primary/20 animate-pulse" />
+                            <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-t-4 border-primary animate-spin" />
+                        </div>
+                        <div className="text-center mt-6">
+                            <p className="text-gray-900 font-semibold">Updating Location</p>
+                            <p className="text-gray-500 text-sm mt-1">Getting your precise coordinates...</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Legend */}

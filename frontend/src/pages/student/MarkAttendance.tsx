@@ -73,34 +73,15 @@ export default function MarkAttendance() {
   const startScanner = async () => {
     isHandlingScanRef.current = false;
     try {
-      // Check if camera permissions are available
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        // Request camera permission first
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
-          });
-          // Stop the stream immediately - we just needed permission
-          stream.getTracks().forEach(track => track.stop());
-        } catch (permissionError: any) {
-          console.error('Camera permission error:', permissionError);
-          setScanState('error');
-
-          if (permissionError.name === 'NotAllowedError' || permissionError.name === 'PermissionDeniedError') {
-            setErrorMessage('Camera permission denied. Please enable camera access in your browser settings and try again.');
-            showToast('error', 'Camera permission denied', 'Please allow camera access in your browser settings');
-          } else if (permissionError.name === 'NotFoundError' || permissionError.name === 'DevicesNotFoundError') {
-            setErrorMessage('No camera found. Please ensure your device has a camera and try again.');
-            showToast('error', 'No camera found', 'Please check if your device has a camera');
-          } else {
-            setErrorMessage('Unable to access camera. Please check your browser settings and try again.');
-            showToast('error', 'Camera access error', 'Please check your browser settings');
-          }
-          return;
-        }
-      } else {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera API not supported in this browser');
       }
+
+      // NOTE: deliberately no pre-flight getUserMedia permission probe here. Opening a
+      // stream, stopping it, then waiting on the geolocation prompt and opening the
+      // camera again fails on iOS Safari - the first stream isn't fully released and
+      // the user-gesture context is gone. html5-qrcode's start() is the single camera
+      // acquisition, and it prompts for permission itself.
 
       // Request location permission before starting scanner
       if (!locationPermissionGranted) {
@@ -165,44 +146,68 @@ export default function MarkAttendance() {
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
 
-        await scanner.start(
-          {
-            facingMode: 'environment',
-            // `focusMode` isn't in the standard MediaTrackConstraints typing, but Chrome/Android
-            // support it for sharper, faster-focusing capture at range.
-            advanced: [{ focusMode: 'continuous' }],
-          } as any,
-          {
-            // No `qrbox`: the library would otherwise draw its own dimmed/boxed
-            // scan-region UI on top of ours. It scans the full video frame instead,
-            // while `.qr-scanner-frame` below is purely a visual guide, same as iOS.
-            fps: 10,
-            disableFlip: false,
-          },
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-          },
-          (errorMessage) => {
-            // Ignore scanning errors - they're normal during scanning
-            console.debug('Scanning error (normal):', errorMessage);
-          }
-        );
+        const scanConfig = {
+          // No `qrbox`: the library would otherwise draw its own dimmed/boxed
+          // scan-region UI on top of ours. It scans the full video frame instead,
+          // while `.qr-scanner-frame` below is purely a visual guide, same as iOS.
+          fps: 10,
+          disableFlip: false,
+        };
+        const onDecoded = (decodedText: string) => handleScanSuccess(decodedText);
+        const onScanFailure = (errorMessage: string) => {
+          // Ignore scanning errors - they're normal during scanning
+          console.debug('Scanning error (normal):', errorMessage);
+        };
+
+        try {
+          // `focusMode` isn't in the standard MediaTrackConstraints typing, but Chrome/Android
+          // support it as an "advanced" (best-effort) constraint for sharper capture at range.
+          await scanner.start(
+            {
+              facingMode: 'environment',
+              advanced: [{ focusMode: 'continuous' }],
+            } as any,
+            scanConfig,
+            onDecoded,
+            onScanFailure
+          );
+        } catch (advancedConstraintError) {
+          // Safari/WebKit (iOS) doesn't support `focusMode` and throws OverconstrainedError
+          // instead of ignoring it like Chrome does - retry with the plain constraint.
+          console.debug('Camera start with focusMode failed, retrying without it:', advancedConstraintError);
+          await scanner.start(
+            { facingMode: 'environment' },
+            scanConfig,
+            onDecoded,
+            onScanFailure
+          );
+        }
       } catch (err: any) {
         console.error('Scanner error:', err);
         setScanState('error');
 
-        if (err.message?.includes('element not found') || err.message?.includes('Scanner element')) {
+        // html5-qrcode rejects with a plain string, not an Error, so err.name/err.message
+        // are undefined - normalize both forms before matching, and always surface the
+        // underlying text rather than a generic message that hides the real cause.
+        const rawMessage = typeof err === 'string' ? err : (err?.message ?? String(err ?? ''));
+        const errorName = typeof err === 'string' ? '' : (err?.name ?? '');
+        const haystack = `${errorName} ${rawMessage}`.toLowerCase();
+
+        if (haystack.includes('element not found') || haystack.includes('scanner element')) {
           setErrorMessage('Failed to initialize scanner. Please refresh the page and try again.');
           showToast('error', 'Scanner initialization failed', 'Please refresh the page');
-        } else if (err.name === 'NotAllowedError' || err.message?.includes('permission')) {
+        } else if (haystack.includes('notallowed') || haystack.includes('permission') || haystack.includes('denied')) {
           setErrorMessage('Camera permission denied. Please enable camera access in your browser settings and try again.');
           showToast('error', 'Camera permission denied', 'Please allow camera access in your browser settings');
-        } else if (err.name === 'NotFoundError' || err.message?.includes('camera')) {
+        } else if (haystack.includes('notfound') || haystack.includes('devicesnotfound')) {
           setErrorMessage('No camera found. Please ensure your device has a camera and try again.');
           showToast('error', 'No camera found', 'Please check if your device has a camera');
+        } else if (haystack.includes('notreadable') || haystack.includes('trackstart') || haystack.includes('in use')) {
+          setErrorMessage('The camera is already in use by another app. Close any app using the camera, then try again.');
+          showToast('error', 'Camera busy', 'Close other apps using the camera');
         } else {
-          setErrorMessage('Unable to access camera. Please ensure you have granted camera permissions and try again.');
-          showToast('error', 'Camera access error', err.message || 'Please check your browser settings');
+          setErrorMessage(`Unable to start the camera. ${rawMessage || 'Unknown camera error.'}`);
+          showToast('error', 'Camera access error', rawMessage || 'Unknown camera error');
         }
       }
     } catch (err: any) {
