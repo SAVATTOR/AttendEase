@@ -292,7 +292,9 @@ export default function StartSession() {
   const requestLocation = async () => {
     setIsLocating(true);
     try {
-      const position = await getAccuratePosition();
+      // This fix anchors every student's distance for the whole session, so it is worth
+      // waiting longer for a sharper one than a student marking attendance would.
+      const position = await getAccuratePosition({ desiredAccuracy: 8, maxWait: 12000 });
       setCoordinates({ lat: position.lat, lng: position.lng });
       setLocationAccuracy(position.accuracy);
       setLocationGranted(true);

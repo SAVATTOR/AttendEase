@@ -167,9 +167,10 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
                         ) : distance !== null ? (
                             <>
                                 Distance: <strong>{distance.toFixed(1)}m</strong> / {allowedRadius}m allowed
-                                {accuracy !== null && accuracy > allowedRadius && (
-                                    <span className="block text-amber-600">
-                                        Signal only accurate to ±{Math.round(accuracy)}m — move outside or near a window
+                                {accuracy !== null && (
+                                    <span className={accuracy > allowedRadius ? "block text-amber-600" : "block text-gray-500"}>
+                                        GPS accurate to ±{Math.round(accuracy)}m
+                                        {accuracy > allowedRadius && ' — move outside or near a window'}
                                     </span>
                                 )}
                             </>

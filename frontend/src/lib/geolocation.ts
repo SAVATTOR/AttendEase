@@ -32,7 +32,7 @@ const readableGeolocationError = (error: GeolocationPositionError): Error => {
  * is too coarse to trust, rather than silently treating it as an exact point.
  */
 export function getAccuratePosition({
-    desiredAccuracy = 20,
+    desiredAccuracy = 10,
     maxWait = 8000,
     timeout = 15000,
 }: AccuratePositionOptions = {}): Promise<FixedPosition> {
