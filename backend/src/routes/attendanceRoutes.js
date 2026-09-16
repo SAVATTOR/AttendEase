@@ -16,6 +16,10 @@ const markAttendanceValidation = [
   body('longitude')
     .isFloat({ min: -180, max: 180 })
     .withMessage('Invalid longitude'),
+  body('accuracy')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Invalid accuracy'),
 ];
 
 const classIdValidation = [

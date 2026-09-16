@@ -4,7 +4,7 @@ const ApiError = require('../utils/ApiError');
 
 const markAttendance = async (req, res, next) => {
   try {
-    const { token, latitude, longitude } = req.body;
+    const { token, latitude, longitude, accuracy } = req.body;
     const studentId = req.user.id;
 
     const validationResult = await qrService.validateQRToken(
@@ -19,6 +19,7 @@ const markAttendance = async (req, res, next) => {
       qrSessionId: validationResult.sessionId,
       latitude,
       longitude,
+      accuracy,
     });
 
     const io = req.app.get('io');

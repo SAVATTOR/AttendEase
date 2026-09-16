@@ -30,6 +30,7 @@ export interface MarkAttendanceData {
     token: string;
     latitude: number;
     longitude: number;
+    accuracy?: number; // metres of uncertainty; the server credits this back against the geofence
 }
 
 export interface MarkAttendanceResponse {

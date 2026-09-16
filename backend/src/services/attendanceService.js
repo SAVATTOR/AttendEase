@@ -1,9 +1,9 @@
 const { prisma } = require('../config/database');
 const ApiError = require('../utils/ApiError');
 const { calculateDistance } = require('../utils/helpers');
-const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
+const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES, MAX_GPS_ACCURACY_SLACK_METERS } = require('../utils/constants');
 
-const markAttendance = async ({ studentId, qrSessionId, latitude, longitude }) => {
+const markAttendance = async ({ studentId, qrSessionId, latitude, longitude, accuracy }) => {
   const qrSession = await prisma.qRSession.findUnique({
     where: { id: qrSessionId },
     include: {
@@ -72,7 +72,15 @@ const markAttendance = async ({ studentId, qrSessionId, latitude, longitude }) =
   const effectiveRadius = qrSession.allowedRadius ?? qrSession.class.allowedRadius;
   const effectiveLateThreshold = qrSession.lateThresholdMinutes ?? qrSession.class.lateThresholdMinutes ?? LATE_THRESHOLD_MINUTES;
 
-  const isWithinRange = distance <= effectiveRadius;
+  // A GPS fix is a circle, not a point. Comparing two fixes as if they were exact made
+  // a student standing beside the lecturer read as ~52m away, because both readings carry
+  // error. Give back the student's own reported uncertainty, capped so a forged accuracy
+  // can't be used to mark attendance from outside the venue.
+  const reportedAccuracy = Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 0;
+  const accuracySlack = Math.min(reportedAccuracy, MAX_GPS_ACCURACY_SLACK_METERS);
+  const effectiveDistance = Math.max(0, distance - accuracySlack);
+
+  const isWithinRange = effectiveDistance <= effectiveRadius;
 
   const minutesSinceStart = (Date.now() - qrSession.createdAt.getTime()) / 60000;
   const isLate = minutesSinceStart > effectiveLateThreshold;

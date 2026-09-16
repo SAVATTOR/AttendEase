@@ -305,11 +305,13 @@ export default function MarkAttendance() {
       // Get student's current location first
       let studentLat: number;
       let studentLng: number;
+      let studentAccuracy: number | undefined;
 
       try {
         const location = await getCurrentLocation();
         studentLat = location.lat;
         studentLng = location.lng;
+        studentAccuracy = location.accuracy;
 
         // Set location data immediately so map can use it (prevents "Location not available" flash)
         setLocationData({
@@ -350,6 +352,9 @@ export default function MarkAttendance() {
         token,
         latitude: studentLat,
         longitude: studentLng,
+        // Sent so the server can credit genuine GPS uncertainty back against the geofence
+        // instead of treating a fuzzy fix as an exact point.
+        accuracy: studentAccuracy,
       });
 
       // Check if enrollment is pending
