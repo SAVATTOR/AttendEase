@@ -116,7 +116,10 @@ const markAttendance = async ({ studentId, qrSessionId, latitude, longitude, acc
   return {
     ...attendance,
     isWithinRange,
-    allowedRadius: qrSession.class.allowedRadius,
+    // The radius this decision was actually made against, not the class default - the
+    // two differ whenever the lecturer overrode the radius for this session.
+    allowedRadius: effectiveRadius,
+    accuracySlack: accuracySlack,
   };
 };
 

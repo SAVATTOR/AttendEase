@@ -370,6 +370,13 @@ export default function MarkAttendance() {
       // Success - attendance marked
       const attendance = response.data;
 
+      // The radius the server actually judged this scan against. validateQR above can
+      // fail silently (its error is swallowed so marking still proceeds), which would
+      // otherwise leave the displayed radius stuck at the component's default.
+      if (typeof attendance.allowedRadius === 'number') {
+        setAllowedRadius(attendance.allowedRadius);
+      }
+
       // Only update location data if we have valid distance from the API response
       // This ensures we use the correct coordinates, not the map component's potentially incorrect ones
       if (attendance.distance !== undefined && attendance.distance !== null && !isNaN(attendance.distance)) {
