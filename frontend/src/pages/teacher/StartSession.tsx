@@ -679,8 +679,8 @@ export default function StartSession() {
                         )}
                       </div>
                       {locationAccuracy !== null && locationAccuracy > allowedRadius && (
-                        <div className="bg-warning/10 border-t border-warning/20 p-2 flex items-start gap-2">
-                          <p className="text-xs text-foreground">
+                        <div className="bg-amber-50 dark:bg-amber-950/40 border-t border-amber-300 dark:border-amber-700/50 p-2 flex items-start gap-2">
+                          <p className="text-xs text-amber-900 dark:text-amber-100">
                             This fix is less precise than your {allowedRadius}m radius, so students nearby may
                             still be measured as out of range. Move near a window or start from a phone, then
                             refresh the location.
