@@ -28,13 +28,27 @@ const statusColors = {
     INVALID_LOCATION: '#EF4444',
 };
 
-// react-leaflet's `center` prop on MapContainer only applies on first render - this
-// keeps the view centered on the teacher as their location updates.
-function RecenterMap({ center }: { center: [number, number] }) {
+// react-leaflet's `center` prop on MapContainer only applies on first render, so the
+// view is driven imperatively. It is framed to the radius rather than a fixed zoom,
+// which at 200m would otherwise overflow the map by several hundred pixels.
+function RecenterMap({ center, fitRadius }: { center: [number, number]; fitRadius?: number }) {
     const map = useMap();
     React.useEffect(() => {
-        map.setView(center);
-    }, [center, map]);
+        if (fitRadius && fitRadius > 0) {
+            const [lat, lng] = center;
+            const latDelta = fitRadius / 111320;
+            const lngDelta = fitRadius / (111320 * Math.cos((lat * Math.PI) / 180));
+            map.fitBounds(
+                [
+                    [lat - latDelta, lng - lngDelta],
+                    [lat + latDelta, lng + lngDelta],
+                ],
+                { padding: [16, 16] }
+            );
+        } else {
+            map.setView(center);
+        }
+    }, [center, fitRadius, map]);
     return null;
 }
 
@@ -53,7 +67,7 @@ export const TeacherSessionMap: React.FC<TeacherSessionMapProps> = ({
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <RecenterMap center={center} />
+                <RecenterMap center={center} fitRadius={allowedRadius} />
 
                 {/* Teacher Location */}
                 <CircleMarker

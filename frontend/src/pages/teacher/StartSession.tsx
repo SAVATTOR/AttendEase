@@ -656,7 +656,7 @@ export default function StartSession() {
                         height="200px"
                         zoom={16}
                         showRadius={true}
-                        allowedRadius={selectedClass?.allowedRadius || 50}
+                        allowedRadius={allowedRadius}
                       />
                       <div className="bg-muted/50 p-2 text-xs text-center text-muted-foreground">
                         Session center location
@@ -1059,7 +1059,7 @@ export default function StartSession() {
                     coordinates ? (
                       <TeacherSessionMap
                         teacherLocation={coordinates}
-                        allowedRadius={selectedClass?.allowedRadius || 50}
+                        allowedRadius={allowedRadius}
                         students={attendanceRecords.map(r => ({
                           id: r.studentId,
                           name: r.student?.name || 'Unknown',

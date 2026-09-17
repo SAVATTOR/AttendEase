@@ -18,13 +18,30 @@ interface LocationMapProps {
     onMapClick?: (lat: number, lng: number) => void;
 }
 
-// react-leaflet's `center`/`zoom` props on MapContainer only apply on first render -
-// this keeps the view in sync when `center` changes afterward (e.g. a new class selected).
-function RecenterMap({ center }: { center: [number, number] }) {
+// react-leaflet's `center`/`zoom` props on MapContainer only apply on first render, so
+// the view has to be driven imperatively afterwards.
+//
+// A fixed zoom also can't represent a radius that ranges from 10m to 200m: at zoom 16 a
+// 10m circle is an 8px dot and a 200m one nearly fills the frame. Framing the view to the
+// circle instead means the drawn geofence matches the configured radius at any value.
+function RecenterMap({ center, fitRadius }: { center: [number, number]; fitRadius?: number }) {
     const map = useMap();
     React.useEffect(() => {
-        map.setView(center);
-    }, [center, map]);
+        if (fitRadius && fitRadius > 0) {
+            const [lat, lng] = center;
+            const latDelta = fitRadius / 111320;
+            const lngDelta = fitRadius / (111320 * Math.cos((lat * Math.PI) / 180));
+            map.fitBounds(
+                [
+                    [lat - latDelta, lng - lngDelta],
+                    [lat + latDelta, lng + lngDelta],
+                ],
+                { padding: [16, 16] }
+            );
+        } else {
+            map.setView(center);
+        }
+    }, [center, fitRadius, map]);
     return null;
 }
 
@@ -59,7 +76,7 @@ export const LocationMap: React.FC<LocationMapProps> = ({
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <RecenterMap center={centerTuple} />
+                <RecenterMap center={centerTuple} fitRadius={showRadius ? allowedRadius : undefined} />
                 {onMapClick && <ClickHandler onMapClick={onMapClick} />}
 
                 {/* Lecturer location */}
