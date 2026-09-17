@@ -35,6 +35,10 @@ export default function MarkAttendance() {
   // callback closure is fixed at scanner.start() time (won't see later re-renders),
   // so a plain state check can't guard re-entrancy - this ref can.
   const isHandlingScanRef = useRef(false);
+  // The QR token rotates every few seconds, but refining a GPS fix takes several. Waiting
+  // until after the scan to start locating can therefore burn the token before the request
+  // is sent, so the fix is warmed while the camera is still looking.
+  const pendingLocationRef = useRef<Promise<Awaited<ReturnType<typeof getAccuratePosition>>> | null>(null);
   const qrReaderRef = useRef<HTMLDivElement | null>(null);
 
   const handleLocationVerified = (location: { lat: number; lng: number }, isWithinRange: boolean, distance: number) => {
@@ -105,6 +109,14 @@ export default function MarkAttendance() {
       }
 
       setScanState('scanning');
+
+      // Start locating now, in parallel with scanning, so the fix is ready (or nearly so)
+      // the moment a code is decoded. Rejections are captured rather than thrown here so
+      // an early failure doesn't surface as an unhandled rejection.
+      pendingLocationRef.current = getAccuratePosition().catch((err) => {
+        pendingLocationRef.current = null;
+        throw err;
+      });
 
       // Wait for React to render the DOM element - use a more reliable approach
       const waitForElement = (elementId: string, maxAttempts = 100, interval = 50): Promise<HTMLElement> => {
@@ -256,7 +268,11 @@ export default function MarkAttendance() {
   // Refines the fix for a few seconds rather than taking the first (often WiFi-derived,
   // hundreds-of-metres-off) reading, which is what caused students standing in the room
   // to be measured as out of range.
-  const getCurrentLocation = () => getAccuratePosition();
+  const getCurrentLocation = () => {
+    const warmed = pendingLocationRef.current;
+    pendingLocationRef.current = null;
+    return warmed ?? getAccuratePosition();
+  };
 
   const playScanFeedback = () => {
     try {
