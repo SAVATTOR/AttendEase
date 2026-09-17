@@ -15,6 +15,10 @@ router.get('/health', (req, res) => {
     message: 'API is running',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    // Render injects RENDER_GIT_COMMIT at build time. Without it there is no way to tell
+    // a deployed fix from a stale container that merely restarted, which repeatedly made
+    // deployed-vs-not indistinguishable when diagnosing issues.
+    commit: (process.env.RENDER_GIT_COMMIT || 'unknown').slice(0, 7),
   });
 });
 
