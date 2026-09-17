@@ -17,7 +17,10 @@ const env = {
   // Support both LOGIN_COOLDOWN_MINUTES and LOGIN__COOLDOWN_MINUTES (double underscore)
   LOGIN_COOLDOWN_MINUTES: parseInt(process.env.LOGIN__COOLDOWN_MINUTES || process.env.LOGIN_COOLDOWN_MINUTES, 10) || 20,
   
-  QR_REFRESH_INTERVAL_SECONDS: parseInt(process.env.QR_REFRESH_INTERVAL_SECONDS, 10) || 10,
+  // The teacher's countdown ring is driven by the refresh this interval triggers, so
+  // changing it changes what the ring counts down from. 15s also comfortably outlasts the
+  // few seconds a student's GPS fix can take, which a shorter rotation was expiring.
+  QR_REFRESH_INTERVAL_SECONDS: parseInt(process.env.QR_REFRESH_INTERVAL_SECONDS, 10) || 15,
   QR_SESSION_DURATION_MINUTES: parseInt(process.env.QR_SESSION_DURATION_MINUTES, 10) || 60,
   
   DEFAULT_ALLOWED_RADIUS_METERS: parseInt(process.env.DEFAULT_ALLOWED_RADIUS_METERS, 10) || 50,

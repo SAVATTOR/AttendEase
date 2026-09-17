@@ -329,20 +329,6 @@ export default function StartSession() {
     }
   };
 
-  // Refresh QR token
-  const refreshQRToken = useCallback(async () => {
-    if (!currentSession?.id) return;
-    try {
-      const result = await qrService.refreshToken(currentSession.id);
-      setQrData(result.token);
-      setCountdown(Math.floor(qrRefreshIntervalMs / 1000));
-    } catch (error: any) {
-      console.error('Failed to refresh token:', error);
-      showToast('error', 'Failed to refresh QR code', error.response?.data?.message || 'Please try again');
-    }
-  }, [currentSession?.id, qrRefreshIntervalMs, showToast]);
-
-
   // Start session
   const startSession = async () => {
     if (!selectedClassId) {
@@ -490,17 +476,15 @@ export default function StartSession() {
     if (!isSessionActive || isSessionPaused || !currentSession) return;
 
     const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          refreshQRToken();
-          return qrRefreshIntervalSeconds;
-        }
-        return prev - 1;
-      });
+      // Display only. The server rotates the token on its own interval and broadcasts
+      // 'qr-refreshed', which is what resets this. Refreshing from here as well meant the
+      // code rotated on two unrelated schedules, so the ring never matched the moment the
+      // QR actually changed. Holding at 0 until the broadcast arrives keeps them in step.
+      setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isSessionActive, isSessionPaused, currentSession, refreshQRToken, qrRefreshIntervalSeconds]);
+  }, [isSessionActive, isSessionPaused, currentSession]);
 
   // Sync QR refresh interval and QR token from backend-driven socket events
   useEffect(() => {
