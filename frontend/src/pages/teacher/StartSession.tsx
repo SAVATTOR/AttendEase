@@ -661,14 +661,14 @@ export default function StartSession() {
                       <div className="bg-muted/50 p-2 text-xs text-center text-muted-foreground">
                         Session center location
                         {locationAccuracy !== null && (
-                          <span className={locationAccuracy > allowedRadius ? 'text-warning font-medium' : ''}>
+                          <span className={locationAccuracy > allowedRadius ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}>
                             {' · '}accurate to ±{Math.round(locationAccuracy)}m
                           </span>
                         )}
                       </div>
                       {locationAccuracy !== null && locationAccuracy > allowedRadius && (
                         <div className="bg-warning/10 border-t border-warning/20 p-2 flex items-start gap-2">
-                          <p className="text-xs text-warning-foreground/90">
+                          <p className="text-xs text-foreground">
                             This fix is less precise than your {allowedRadius}m radius, so students nearby may
                             still be measured as out of range. Move near a window or start from a phone, then
                             refresh the location.

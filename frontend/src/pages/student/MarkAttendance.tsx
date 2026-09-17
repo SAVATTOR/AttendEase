@@ -17,6 +17,7 @@ interface LocationData {
   lng: number;
   isWithinRange: boolean;
   distance: number;
+  accuracy?: number;
 }
 
 export default function MarkAttendance() {
@@ -319,6 +320,7 @@ export default function MarkAttendance() {
           lng: studentLng,
           isWithinRange: true, // Will be updated after API response
           distance: 0, // Will be updated after API response
+          accuracy: studentAccuracy,
         });
       } catch (locationError: any) {
         setScanState('error');
@@ -376,6 +378,7 @@ export default function MarkAttendance() {
           lng: studentLng,
           isWithinRange: attendance.isWithinRange ?? true,
           distance: attendance.distance,
+          accuracy: studentAccuracy,
         });
       }
 
@@ -515,6 +518,7 @@ export default function MarkAttendance() {
                     height="200px"
                     autoRequestLocation={false}
                     initialStudentLocation={{ lat: locationData.lat, lng: locationData.lng }}
+                    initialAccuracy={locationData.accuracy}
                   />
                 </div>
               )}

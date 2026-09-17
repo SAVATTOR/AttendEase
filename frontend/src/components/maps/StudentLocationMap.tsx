@@ -14,6 +14,7 @@ interface StudentLocationMapProps {
     height?: string;
     autoRequestLocation?: boolean; // If false, won't automatically request location on mount
     initialStudentLocation?: { lat: number; lng: number }; // Pre-provided student location to avoid requesting
+    initialAccuracy?: number; // Accuracy of that pre-provided fix, so it can be shown without re-locating
 }
 
 // Haversine formula to calculate distance
@@ -31,13 +32,27 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
     return R * c;
 };
 
-// react-leaflet's `center` prop on MapContainer only applies on first render - this
-// keeps the view centered as the student's location is (re)fetched.
-function RecenterMap({ center }: { center: [number, number] }) {
+// react-leaflet's `center` prop on MapContainer only applies on first render, so the
+// view is driven imperatively. It is framed to the radius rather than a fixed zoom, which
+// at 200m would otherwise overflow the map entirely.
+function RecenterMap({ center, fitRadius }: { center: [number, number]; fitRadius?: number }) {
     const map = useMap();
     useEffect(() => {
-        map.setView(center);
-    }, [center, map]);
+        if (fitRadius && fitRadius > 0) {
+            const [lat, lng] = center;
+            const latDelta = fitRadius / 111320;
+            const lngDelta = fitRadius / (111320 * Math.cos((lat * Math.PI) / 180));
+            map.fitBounds(
+                [
+                    [lat - latDelta, lng - lngDelta],
+                    [lat + latDelta, lng + lngDelta],
+                ],
+                { padding: [16, 16] }
+            );
+        } else {
+            map.setView(center);
+        }
+    }, [center, fitRadius, map]);
     return null;
 }
 
@@ -48,13 +63,18 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
     height = '300px',
     autoRequestLocation = true,
     initialStudentLocation,
+    initialAccuracy,
 }) => {
     const [studentLocation, setStudentLocation] = useState<{ lat: number; lng: number } | null>(initialStudentLocation || null);
     const [distance, setDistance] = useState<number | null>(null);
-    const [accuracy, setAccuracy] = useState<number | null>(null);
+    const [accuracy, setAccuracy] = useState<number | null>(initialAccuracy ?? null);
     const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isLocating, setIsLocating] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (initialAccuracy !== undefined) setAccuracy(initialAccuracy);
+    }, [initialAccuracy]);
 
     // Calculate distance if we have initial location
     useEffect(() => {
@@ -222,7 +242,7 @@ export const StudentLocationMap: React.FC<StudentLocationMapProps> = ({
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    <RecenterMap center={mapCenterTuple} />
+                    <RecenterMap center={mapCenterTuple} fitRadius={allowedRadius} />
 
                     {/* Teacher Location */}
                     <CircleMarker
