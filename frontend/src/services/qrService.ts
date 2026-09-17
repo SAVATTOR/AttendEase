@@ -12,6 +12,9 @@ export interface QRSession {
     resumedAt?: string;
     expiresAt: string;
     endedAt?: string;
+    // Per-session overrides of the class defaults; null when the class default applies.
+    allowedRadius?: number | null;
+    lateThresholdMinutes?: number | null;
     class?: {
         name: string;
         allowedRadius: number;

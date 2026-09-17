@@ -108,6 +108,10 @@ export default function StartSession() {
   // saved preferences (rather than hardcoded literals) so a class without its own
   // explicit override still reflects what was saved on the Settings page.
   useEffect(() => {
+    // These are the starting values for composing a NEW session. Restoring an active one
+    // also sets selectedClassId, so without this guard the prefill would immediately
+    // overwrite the radius that session is actually running with.
+    if (isSessionActive) return;
     if (selectedClassId && classes.length > 0) {
       const selectedClass = classes.find(c => c.id === selectedClassId);
       if (selectedClass) {
@@ -116,7 +120,7 @@ export default function StartSession() {
         setLateThresholdMinutes(userSettings?.lateThresholdMinutes ?? selectedClass.lateThresholdMinutes ?? 15);
       }
     }
-  }, [selectedClassId, classes, userSettings]);
+  }, [selectedClassId, classes, userSettings, isSessionActive]);
   // Fetch session attendance (defined early so it can be used in restoration)
   const fetchSessionAttendance = useCallback(async (sessionId?: string) => {
     const targetSessionId = sessionId || currentSession?.id;
@@ -196,6 +200,14 @@ export default function StartSession() {
       if (session.status === 'PAUSED' && session.pausedAt) {
         setPausedAt(new Date(session.pausedAt));
       }
+
+      // Restore the radius this session was actually started with, otherwise a refresh
+      // silently falls back to the class default and the map draws a geofence that is not
+      // the one being enforced.
+      const restoredRadius = session.allowedRadius ?? session.class?.allowedRadius;
+      if (typeof restoredRadius === 'number') setAllowedRadius(restoredRadius);
+      const restoredLateThreshold = session.lateThresholdMinutes ?? session.class?.lateThresholdMinutes;
+      if (typeof restoredLateThreshold === 'number') setLateThresholdMinutes(restoredLateThreshold);
 
       // Restore location if available
       if (session.latitude && session.longitude) {

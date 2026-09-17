@@ -214,8 +214,10 @@ const validateQRToken = async (token, studentId, latitude, longitude) => {
       latitude: session.latitude,
       longitude: session.longitude,
     },
-    allowedRadius: session.class.allowedRadius,
-    lateThresholdMinutes: session.class.lateThresholdMinutes,
+    // Must mirror the precedence markAttendance() enforces with, or the student is shown
+    // the class default while the server actually judges them against the session override.
+    allowedRadius: session.allowedRadius ?? session.class.allowedRadius,
+    lateThresholdMinutes: session.lateThresholdMinutes ?? session.class.lateThresholdMinutes,
     sessionStartedAt: session.createdAt,
   };
 };
