@@ -2,9 +2,58 @@
 // placeholders, random typing and abusive words; they cannot tell a real course from a
 // plausible-sounding made-up one.
 
-// Letters in any alphabet, digits, spaces and the punctuation real course titles use,
-// e.g. "CSC 201 - Data Structures", "C++ Programming", "Research Methods (Part I)".
-const ALLOWED_CHARACTERS = /^[\p{L}\p{N}\s\-–&,.'’()/:+#]+$/u;
+// Letters in any alphabet, digits, spaces and the only symbols allowed: ( ) . - &
+const ALLOWED_CHARACTERS = /^[\p{L}\p{N}\s().\-&]+$/u;
+
+const isWordCharacter = (character) => /[\p{L}\p{N}]/u.test(character);
+
+// The nearest character that is not a space, looking backwards (step -1) or forwards (step 1).
+const nearestCharacter = (title, index, step) => {
+  for (let i = index + step; i >= 0 && i < title.length; i += step) {
+    if (!/\s/.test(title[i])) return title[i];
+  }
+  return null;
+};
+
+// The allowed symbols must be used the way course titles use them, so they cannot be
+// strung together into things like "Physics (&.-)" or "-- Maths &&".
+const symbolProblem = (title) => {
+  let insideBrackets = false;
+  let bracketsHaveWord = false;
+
+  for (let i = 0; i < title.length; i++) {
+    const character = title[i];
+
+    if (character === '(' || character === ')') {
+      const opening = character === '(';
+      if (opening === insideBrackets || (!opening && !bracketsHaveWord)) {
+        return 'Brackets must be closed and have words inside, for example "Research Methods (Part I)"';
+      }
+      insideBrackets = opening;
+      bracketsHaveWord = false;
+    } else if (character === '.') {
+      // Straight after a word, as in "Intro." or "2.0", which also rules out ".."
+      if (i === 0 || !isWordCharacter(title[i - 1])) {
+        return 'A full stop must come straight after a word, for example "Intro. to Physics"';
+      }
+    } else if (character === '-' || character === '&') {
+      const before = nearestCharacter(title, i, -1);
+      const after = nearestCharacter(title, i, 1);
+      const wordBefore = before !== null && (isWordCharacter(before) || before === ')' || before === '.');
+      const wordAfter = after !== null && (isWordCharacter(after) || after === '(');
+      if (!wordBefore || !wordAfter) {
+        return '"-" and "&" must go between words, for example "CSC 201 - Principles & Practice"';
+      }
+    } else if (insideBrackets && isWordCharacter(character)) {
+      bracketsHaveWord = true;
+    }
+  }
+
+  if (insideBrackets) {
+    return 'Brackets must be closed and have words inside, for example "Research Methods (Part I)"';
+  }
+  return null;
+};
 
 // Words that never make a course title on their own. A title needs at least one word
 // outside this list, so "Test Class" is rejected but "Software Testing" is not.
@@ -31,7 +80,12 @@ const ROMAN_NUMERAL = /^[ivxl]+$/;
 // Returns why the title is not acceptable, or null when it is.
 const courseTitleProblem = (title) => {
   if (!ALLOWED_CHARACTERS.test(title)) {
-    return "Course title can only contain letters, numbers, spaces and - & , . ' ( ) / : + #";
+    return 'Course title can only contain letters, numbers, spaces and the symbols ( ) . - &';
+  }
+
+  const misusedSymbol = symbolProblem(title);
+  if (misusedSymbol) {
+    return misusedSymbol;
   }
 
   const words = title.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);

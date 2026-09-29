@@ -355,7 +355,7 @@ export default function TeacherClasses() {
                   onChange={(e) => setNewClassName(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter the full academic course title. Placeholders like "Test" or "My Class" are not accepted.
+                  Enter the full academic course title, e.g. "CSC 201 - Data Structures". Only the symbols ( ) . - &amp; are allowed.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
