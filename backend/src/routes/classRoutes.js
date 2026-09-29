@@ -5,6 +5,13 @@ const { authenticate } = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
 const { validateRequest } = require('../middleware/validateRequest');
 const { body, param, query } = require('express-validator');
+const { courseTitleProblem } = require('../utils/courseTitle');
+
+const isCourseTitle = (name) => {
+  const problem = courseTitleProblem(name);
+  if (problem) throw new Error(problem);
+  return true;
+};
 
 const createClassValidation = [
   body('name')
@@ -12,7 +19,9 @@ const createClassValidation = [
     .notEmpty()
     .withMessage('Class name is required')
     .isLength({ min: 2, max: 100 })
-    .withMessage('Class name must be between 2 and 100 characters'),
+    .withMessage('Class name must be between 2 and 100 characters')
+    .bail()
+    .custom(isCourseTitle),
   body('description')
     .optional()
     .trim()
@@ -34,7 +43,9 @@ const updateClassValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 100 })
-    .withMessage('Class name must be between 2 and 100 characters'),
+    .withMessage('Class name must be between 2 and 100 characters')
+    .bail()
+    .custom(isCourseTitle),
   body('description')
     .optional()
     .trim()

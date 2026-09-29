@@ -151,7 +151,7 @@ export default function TeacherClasses() {
 
   const handleCreateClass = async () => {
     if (!newClassName.trim()) {
-      showToast('error', 'Class name is required');
+      showToast('error', 'Course title is required');
       return;
     }
 
@@ -178,7 +178,7 @@ export default function TeacherClasses() {
       showToast('success', 'Class created!', `${newClass.name} is ready for students`);
     } catch (error: any) {
       console.error('Failed to create class:', error);
-      showToast('error', 'Failed to create class', error.response?.data?.message);
+      showToast('error', 'Failed to create class', error.response?.data?.errors?.[0]?.message || error.response?.data?.message);
     } finally {
       setIsCreating(false);
     }
@@ -347,13 +347,16 @@ export default function TeacherClasses() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="className">Class Name</Label>
+                <Label htmlFor="className">Course Title</Label>
                 <Input
                   id="className"
                   placeholder="e.g., Introduction to Physics"
                   value={newClassName}
                   onChange={(e) => setNewClassName(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the full academic course title. Placeholders like "Test" or "My Class" are not accepted.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
